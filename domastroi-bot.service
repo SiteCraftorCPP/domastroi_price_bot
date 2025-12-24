@@ -5,11 +5,13 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/domastroi-bot
-Environment="PATH=/opt/domastroi-bot/venv/bin"
-ExecStart=/opt/domastroi-bot/venv/bin/python /opt/domastroi-bot/bot.py
+WorkingDirectory=/opt/domastroi_price_bot
+Environment="PATH=/opt/domastroi_price_bot/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/domastroi_price_bot/venv/bin/python3 /opt/domastroi_price_bot/bot.py
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
