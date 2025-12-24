@@ -410,7 +410,12 @@ async def main():
     logging.info(f"Bot token: {BOT_TOKEN[:10]}...")
     logging.info(f"Chat ID: {CHAT_ID}")
     logging.info(f"Admin IDs: {ADMIN_IDS}")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    
+    # Проверяем регистрацию обработчиков
+    handlers_count = len(dp.subscribers)
+    logging.info(f"Registered handlers: {handlers_count}")
+    
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
