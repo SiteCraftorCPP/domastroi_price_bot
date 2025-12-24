@@ -51,10 +51,21 @@ async def admin_panel(message: types.Message):
         await message.answer("❌ У вас нет доступа к админ-панели.")
         return
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    # Формируем клавиатуру в зависимости от наличия документа
+    keyboard_buttons = [
         [InlineKeyboardButton(text="📎 Загрузить документ ПД", callback_data="admin_upload_pd")]
-    ])
-    await message.answer("🔐 <b>Админ-панель</b>\n\nВыберите действие:", reply_markup=keyboard, parse_mode="HTML")
+    ]
+    
+    if pd_document["file_id"]:
+        status_text = f"📄 Документ ПД загружен ({pd_document['type']})"
+        keyboard_buttons.append([InlineKeyboardButton(text="🗑️ Удалить документ ПД", callback_data="admin_delete_pd")])
+    else:
+        status_text = "📄 Документ ПД не загружен"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    text = f"🔐 <b>Админ-панель</b>\n\n{status_text}\n\nВыберите действие:"
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(F.data == "admin_upload_pd")
 async def admin_upload_pd_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -88,6 +99,26 @@ async def handle_admin_upload(message: types.Message, state: FSMContext):
             await message.answer("❌ Поддерживаются только PDF документы.")
     
     await state.clear()
+
+@dp.callback_query(F.data == "admin_delete_pd")
+async def admin_delete_pd_handler(callback: types.CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ У вас нет доступа.", show_alert=True)
+        return
+    
+    if pd_document["file_id"]:
+        pd_document["file_id"] = None
+        pd_document["type"] = None
+        
+        # Обновляем админ-панель
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📎 Загрузить документ ПД", callback_data="admin_upload_pd")]
+        ])
+        text = "🔐 <b>Админ-панель</b>\n\n✅ Документ ПД успешно удален.\n\n📄 Документ ПД не загружен\n\nВыберите действие:"
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.answer("Документ удален", show_alert=True)
+    else:
+        await callback.answer("❌ Документ ПД не загружен.", show_alert=True)
 
 # ============= ОСНОВНОЙ СЦЕНАРИЙ БОТА =============
 
