@@ -418,8 +418,16 @@ async def main():
     except Exception as e:
         logging.error(f"Error checking handlers: {e}")
     
-    # Тестируем обработчик start
-    logging.info("Testing /start command handler registration...")
+    # Очищаем старые обновления и получаем информацию о боте
+    try:
+        bot_info = await bot.get_me()
+        logging.info(f"Bot info: @{bot_info.username} ({bot_info.id}) - {bot_info.first_name}")
+        
+        # Очищаем pending updates
+        await bot.delete_webhook(drop_pending_updates=True)
+        logging.info("Webhook deleted and pending updates dropped")
+    except Exception as e:
+        logging.error(f"Error getting bot info or clearing updates: {e}")
     
     await dp.start_polling(bot, drop_pending_updates=True)
 
