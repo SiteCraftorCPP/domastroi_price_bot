@@ -404,10 +404,13 @@ async def process_phone(message: types.Message, state: FSMContext):
     # Очищаем состояние
     await state.clear()
 
-# Обработчик для всех необработанных сообщений (для отладки)
-@dp.message()
-async def handle_unhandled_message(message: types.Message):
-    logging.warning(f"Unhandled message from {message.from_user.id}: {message.text}")
+# Обработчик для всех необработанных текстовых сообщений (для отладки)
+# Не перехватывает команды и сообщения в состояниях FSM
+@dp.message(F.text, ~Command())
+async def handle_unhandled_message(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:  # Только если не в состоянии FSM
+        logging.warning(f"Unhandled text message from {message.from_user.id}: {message.text}")
 
 # Запуск бота
 async def main():
