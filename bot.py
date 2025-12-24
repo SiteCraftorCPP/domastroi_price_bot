@@ -19,7 +19,10 @@ CHAT_ID = int(os.getenv("CHAT_ID", "-1003650005079"))
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "765740972,6933111964").split(",")]
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Инициализация бота
 bot = Bot(token=BOT_TOKEN)
@@ -401,9 +404,18 @@ async def process_phone(message: types.Message, state: FSMContext):
     # Очищаем состояние
     await state.clear()
 
+# Обработчик для всех необработанных сообщений (для отладки)
+@dp.message()
+async def handle_unhandled_message(message: types.Message):
+    logging.warning(f"Unhandled message from {message.from_user.id}: {message.text}")
+
 # Запуск бота
 async def main():
-    await dp.start_polling(bot)
+    logging.info("Starting bot...")
+    logging.info(f"Bot token: {BOT_TOKEN[:10]}...")
+    logging.info(f"Chat ID: {CHAT_ID}")
+    logging.info(f"Admin IDs: {ADMIN_IDS}")
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == "__main__":
     asyncio.run(main())
