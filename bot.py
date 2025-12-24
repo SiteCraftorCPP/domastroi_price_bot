@@ -412,10 +412,16 @@ async def main():
     logging.info(f"Admin IDs: {ADMIN_IDS}")
     
     # Проверяем регистрацию обработчиков
-    handlers_count = len(dp.subscribers)
-    logging.info(f"Registered handlers: {handlers_count}")
+    try:
+        handlers_count = len([h for h in dp.subscribers.values() for sub in h])
+        logging.info(f"Registered handlers: {handlers_count}")
+    except Exception as e:
+        logging.error(f"Error checking handlers: {e}")
     
-    await dp.start_polling(bot)
+    # Тестируем обработчик start
+    logging.info("Testing /start command handler registration...")
+    
+    await dp.start_polling(bot, drop_pending_updates=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
