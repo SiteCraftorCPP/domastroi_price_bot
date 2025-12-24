@@ -1,0 +1,16 @@
+[Unit]
+Description=Domastroi Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/domastroi-bot
+Environment="PATH=/opt/domastroi-bot/venv/bin"
+ExecStart=/opt/domastroi-bot/venv/bin/python /opt/domastroi-bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
