@@ -144,7 +144,18 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "Готовы начать?"
     )
     
-    await message.answer(welcome_text, reply_markup=keyboard)
+    # Отправляем фото с текстом
+    photo_path = "images/dfegvjedrfgvf"
+    try:
+        with open(photo_path, "rb") as photo:
+            await message.answer_photo(
+                photo=types.FSInputFile(photo_path),
+                caption=welcome_text,
+                reply_markup=keyboard
+            )
+    except FileNotFoundError:
+        # Если файл не найден, отправляем только текст
+        await message.answer(welcome_text, reply_markup=keyboard)
 
 @dp.callback_query(F.data == "start_calc")
 async def start_calculation(callback: types.CallbackQuery, state: FSMContext):
