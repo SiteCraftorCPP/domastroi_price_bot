@@ -148,9 +148,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data == "start_calc")
 async def start_calculation(callback: types.CallbackQuery, state: FSMContext):
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Новостройка", callback_data="prop_new")],
         [InlineKeyboardButton(text="Вторичка", callback_data="prop_old")],
@@ -181,9 +178,6 @@ async def process_property_type(callback: types.CallbackQuery, state: FSMContext
     
     await state.update_data(property_type=property_mapping[callback.data])
     
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Косметический", callback_data="repair_cosmetic")],
         [InlineKeyboardButton(text="Капитальный", callback_data="repair_capital")]
@@ -209,9 +203,6 @@ async def process_repair_type(callback: types.CallbackQuery, state: FSMContext):
     }
     
     await state.update_data(repair_type=repair_mapping[callback.data])
-    
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Базовый", callback_data="style_basic")],
@@ -243,14 +234,12 @@ async def process_style_type(callback: types.CallbackQuery, state: FSMContext):
     
     await state.update_data(style_type=style_mapping[callback.data])
     
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
-    
     text = (
         "Вопрос 4 из 5\n"
         "Сколько квадратных метров помещение?\n\n"
         "▰▰▰▰▱\n"
-        "Расчёт готов на 80%"
+        "Расчёт готов на 80%\n\n"
+        "Введите число:"
     )
     
     msg = await callback.message.answer(text)
@@ -262,18 +251,10 @@ async def process_style_type(callback: types.CallbackQuery, state: FSMContext):
 async def process_square_meters(message: types.Message, state: FSMContext):
     # Проверяем, что сообщение содержит только цифры
     if not message.text.isdigit():
-        data = await state.get_data()
-        # Удаляем неправильный ввод
-        await message.delete()
-        # Не удаляем вопрос, просто ждем правильного ответа
+        await message.answer("❌ Пожалуйста, введите только число (например: 50)")
         return
     
     await state.update_data(square_meters=message.text)
-    
-    # Удаляем ответ пользователя и предыдущий вопрос
-    data = await state.get_data()
-    await message.delete()
-    await bot.delete_message(message.chat.id, data['last_message_id'])
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="2-3 месяца", callback_data="deadline_2-3")],
@@ -304,9 +285,6 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
     
     await state.update_data(deadline=deadline_mapping[callback.data])
     
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅Согласие на обработку ПД", callback_data="consent_yes")]
     ])
@@ -336,9 +314,6 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.consent, F.data == "consent_yes")
 async def process_consent(callback: types.CallbackQuery, state: FSMContext):
-    # Удаляем предыдущее сообщение
-    await callback.message.delete()
-    
     # Получаем имя пользователя
     user_name = callback.from_user.first_name or "Пользователь"
     
