@@ -295,10 +295,6 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
     
     await state.update_data(deadline=deadline_mapping[callback.data])
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅Согласие на обработку ПД", callback_data="consent_yes")]
-    ])
-    
     text = "Кстати, продолжая, вы даёте согласие на обработку персональных данных. 🤝"
     
     # Проверяем, есть ли загруженный документ
@@ -306,20 +302,19 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
         if pd_document["type"] == "photo":
             msg = await callback.message.answer_photo(
                 photo=pd_document["file_id"],
-                caption=text,
-                reply_markup=keyboard
+                caption=text
             )
         else:  # document
             msg = await callback.message.answer_document(
                 document=pd_document["file_id"],
-                caption=text,
-                reply_markup=keyboard
+                caption=text
             )
     else:
-        msg = await callback.message.answer(text, reply_markup=keyboard)
+        msg = await callback.message.answer(text)
     
-    await state.update_data(last_message_id=msg.message_id)
-    await state.set_state(Form.consent)
+    # Автоматически переходим к следующему шагу
+    await asyncio.sleep(1)
+    await process_consent_auto(callback, state)
     await callback.answer()
 
 @dp.callback_query(Form.consent, F.data == "consent_yes")
