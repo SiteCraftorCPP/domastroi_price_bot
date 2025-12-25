@@ -55,7 +55,16 @@ async def send_reminder(user_id: int, sticker_index: int):
         # Проверяем, что пользователь все еще в процессе (не завершил опрос)
         # Создаем временный FSMContext для проверки состояния
         from aiogram.fsm.context import FSMContext
-        temp_state = FSMContext(storage=storage, key=storage.resolve_key(bot=bot, chat_id=user_id, user_id=user_id))
+        from aiogram.fsm.storage.base import StorageKey
+        
+        # Создаем ключ для storage
+        storage_key = StorageKey(
+            chat_id=user_id,
+            user_id=user_id,
+            bot_id=bot.id
+        )
+        
+        temp_state = FSMContext(storage=storage, key=storage_key)
         current_state = await temp_state.get_state()
         
         if current_state is None:
@@ -80,11 +89,17 @@ async def schedule_reminders(user_id: int):
     # Создаем новые задачи для каждого интервала
     tasks = []
     for i, interval_minutes in enumerate(REMINDER_INTERVALS):
-        async def reminder_task(index=i, minutes=interval_minutes):
-            await asyncio.sleep(minutes * 60)  # Конвертируем минуты в секунды
-            await send_reminder(user_id, index)
+        # Исправляем замыкание - создаем функцию-фабрику
+        def create_reminder_task(index, minutes):
+            async def reminder_task():
+                sleep_seconds = minutes * 60
+                logging.info(f"Reminder task {index + 1} for user {user_id} will sleep {sleep_seconds} seconds ({minutes} minutes)")
+                await asyncio.sleep(sleep_seconds)  # Конвертируем минуты в секунды
+                logging.info(f"Reminder task {index + 1} for user {user_id} woke up, sending sticker {index + 1}")
+                await send_reminder(user_id, index)
+            return reminder_task
         
-        task = asyncio.create_task(reminder_task())
+        task = asyncio.create_task(create_reminder_task(i, interval_minutes)())
         tasks.append(task)
     
     reminder_tasks[user_id] = tasks
