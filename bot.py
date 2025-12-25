@@ -238,7 +238,8 @@ async def process_style_type(callback: types.CallbackQuery, state: FSMContext):
         "Вопрос 4 из 5\n"
         "Сколько квадратных метров помещение?\n\n"
         "▰▰▰▰▱\n"
-        "Отлично! осталось чуть-чуть 🥁 Расчёт готов на 80%"
+        "Отлично! осталось чуть-чуть 🥁 Расчёт готов на 80%\n\n"
+        "Введите число:"
     )
     
     msg = await callback.message.answer(text)
@@ -387,8 +388,11 @@ async def main():
     
     # Проверяем регистрацию обработчиков
     try:
-        handlers_count = len([h for h in dp.subscribers.values() for sub in h])
-        logging.info(f"Registered handlers: {handlers_count}")
+        # Получаем количество зарегистрированных обработчиков
+        message_handlers = [h for h in dp.message.handlers]
+        callback_handlers = [h for h in dp.callback_query.handlers]
+        total_handlers = len(message_handlers) + len(callback_handlers)
+        logging.info(f"Registered handlers: {total_handlers} (messages: {len(message_handlers)}, callbacks: {len(callback_handlers)})")
     except Exception as e:
         logging.error(f"Error checking handlers: {e}")
     
