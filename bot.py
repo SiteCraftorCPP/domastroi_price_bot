@@ -300,21 +300,47 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
     # Проверяем, есть ли загруженный документ
     if pd_document["file_id"]:
         if pd_document["type"] == "photo":
-            msg = await callback.message.answer_photo(
+            await callback.message.answer_photo(
                 photo=pd_document["file_id"],
                 caption=text
             )
         else:  # document
-            msg = await callback.message.answer_document(
+            await callback.message.answer_document(
                 document=pd_document["file_id"],
                 caption=text
             )
     else:
-        msg = await callback.message.answer(text)
+        await callback.message.answer(text)
     
     # Автоматически переходим к следующему шагу
     await asyncio.sleep(1)
-    await process_consent_auto(callback, state)
+    
+    # Получаем имя пользователя
+    user_name = callback.from_user.first_name or "Пользователь"
+    
+    # Вычисляем дату через 3 дня
+    future_date = datetime.now() + timedelta(days=3)
+    date_str = future_date.strftime("%d.%m.%Y")
+    
+    text = (
+        f"{user_name},\n\n"
+        f"Ваш расчет стоимости почти готов!\n\n"
+        f"Закрепим за номером стоимость, бесплатную консультацию и разбор планировки дизайнером. "
+        f"Разбор с дизайнером действителен до {date_str}."
+    )
+    
+    # Создаем обычную клавиатуру с кнопкой для запроса контакта
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="✅Узнать стоимость", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    
+    msg = await callback.message.answer(text, reply_markup=keyboard)
+    await state.update_data(last_message_id=msg.message_id, user_name=user_name)
+    await state.set_state(Form.phone)
     await callback.answer()
 
 @dp.callback_query(Form.consent, F.data == "consent_yes")
