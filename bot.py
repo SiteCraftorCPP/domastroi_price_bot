@@ -18,6 +18,10 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "7884349748:AAEZC82Nd72L1eR1rhupuDWihjWdEKG4b
 CHAT_ID = int(os.getenv("CHAT_ID", "-1003650005079"))
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "765740972,6933111964").split(",")]
 
+# Ссылки на документы
+CONSENT_URL = os.getenv("CONSENT_URL", "https://example.com/consent")  # URL текста согласия
+PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "https://example.com/privacy")  # URL политики конфиденциальности
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +33,72 @@ bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# Словарь для отслеживания задач напоминаний (user_id -> list of tasks)
+reminder_tasks = {}
+
+# Стикеры для напоминаний (в порядке отправки: 15 мин, 1 час, 3 часа, 6 часов)
+REMINDER_STICKERS = [
+    "CAACAgIAAxkBApUFg2lNaL09xGOpfkD_m9xkc0VKXOPdAAJ4JQACns4LAAGDyOccgT5A2DYE",  # 😐 15 мин
+    "CAACAgIAAxkBApUFjWlNaMVKyr4HFrx4exu29A6fbsC4AAKAJQACns4LAAGBQrQPedmR7TYE",  # 😥 1 час
+    "CAACAgIAAxkBApUFoGlNaNngFpNsm9luIbTVrNsdEfjoAAJ8JQACns4LAAEL1z71bsX8fzYE",  # 💪 3 часа
+    "CAACAgIAAxkBApUFq2lNaN2gLezX5w8wTd6HJufwS1oPAAKOJQACns4LAAFbqxE8XpCvUzYE",  # ❤️ 6 часов
+]
+
+# Интервалы напоминаний в минутах
+REMINDER_INTERVALS = [15, 60, 180, 360]  # 15 мин, 1 час, 3 часа, 6 часов
+
+# ============= СИСТЕМА НАПОМИНАНИЙ =============
+
+async def send_reminder(user_id: int, sticker_index: int):
+    """Отправляет стикер-напоминание пользователю, если он все еще в процессе опроса"""
+    try:
+        # Проверяем, что пользователь все еще в процессе (не завершил опрос)
+        # Создаем временный FSMContext для проверки состояния
+        from aiogram.fsm.context import FSMContext
+        temp_state = FSMContext(storage=storage, key=storage.resolve_key(bot=bot, chat_id=user_id, user_id=user_id))
+        current_state = await temp_state.get_state()
+        
+        if current_state is None:
+            # Пользователь завершил опрос или вышел, отменяем напоминания
+            cancel_reminders(user_id)
+            return
+        
+        # Отправляем стикер
+        if sticker_index < len(REMINDER_STICKERS):
+            await bot.send_sticker(user_id, REMINDER_STICKERS[sticker_index])
+            logging.info(f"Sent reminder {sticker_index + 1} to user {user_id}")
+    except Exception as e:
+        logging.error(f"Error sending reminder to user {user_id}: {e}")
+        # Если ошибка, отменяем напоминания для этого пользователя
+        cancel_reminders(user_id)
+
+async def schedule_reminders(user_id: int):
+    """Планирует отправку напоминаний для пользователя"""
+    # Отменяем предыдущие задачи, если они есть
+    cancel_reminders(user_id)
+    
+    # Создаем новые задачи для каждого интервала
+    tasks = []
+    for i, interval_minutes in enumerate(REMINDER_INTERVALS):
+        async def reminder_task(index=i, minutes=interval_minutes):
+            await asyncio.sleep(minutes * 60)  # Конвертируем минуты в секунды
+            await send_reminder(user_id, index)
+        
+        task = asyncio.create_task(reminder_task())
+        tasks.append(task)
+    
+    reminder_tasks[user_id] = tasks
+    logging.info(f"Scheduled {len(tasks)} reminders for user {user_id}")
+
+def cancel_reminders(user_id: int):
+    """Отменяет все напоминания для пользователя"""
+    if user_id in reminder_tasks:
+        for task in reminder_tasks[user_id]:
+            if not task.done():
+                task.cancel()
+        del reminder_tasks[user_id]
+        logging.info(f"Cancelled reminders for user {user_id}")
+
 # Состояния FSM
 class Form(StatesGroup):
     property_type = State()
@@ -39,12 +109,6 @@ class Form(StatesGroup):
     consent = State()
     phone = State()
 
-class AdminStates(StatesGroup):
-    waiting_for_pd_document = State()
-
-# Хранилище для документа о ПД (в продакшене использовать БД)
-# type может быть "photo" или "document"
-pd_document = {"file_id": None, "type": None}
 
 # ============= АДМИНСКИЕ КОМАНДЫ =============
 
@@ -54,80 +118,17 @@ async def admin_panel(message: types.Message):
         await message.answer("❌ У вас нет доступа к админ-панели.")
         return
     
-    # Формируем клавиатуру в зависимости от наличия документа
-    keyboard_buttons = [
-        [InlineKeyboardButton(text="📎 Загрузить документ ПД", callback_data="admin_upload_pd")]
-    ]
-    
-    if pd_document["file_id"]:
-        status_text = f"📄 Документ ПД загружен ({pd_document['type']})"
-        keyboard_buttons.append([InlineKeyboardButton(text="🗑️ Удалить документ ПД", callback_data="admin_delete_pd")])
-    else:
-        status_text = "📄 Документ ПД не загружен"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    text = f"🔐 <b>Админ-панель</b>\n\n{status_text}\n\nВыберите действие:"
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
-
-@dp.callback_query(F.data == "admin_upload_pd")
-async def admin_upload_pd_handler(callback: types.CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("❌ У вас нет доступа.", show_alert=True)
-        return
-    
-    await callback.message.edit_text(
-        "📎 Отправьте фото или PDF документ для согласия на обработку ПД.\n\n"
-        "Этот файл будет прикреплен к сообщению о согласии."
-    )
-    await state.set_state(AdminStates.waiting_for_pd_document)
-    await callback.answer()
-
-@dp.message(AdminStates.waiting_for_pd_document, F.photo | F.document)
-async def handle_admin_upload(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS:
-        await state.clear()
-        return
-    
-    if message.photo:
-        pd_document["file_id"] = message.photo[-1].file_id
-        pd_document["type"] = "photo"
-        await message.answer("✅ Фото успешно загружено и будет прикреплено к сообщению о ПД.")
-    elif message.document:
-        if message.document.mime_type == "application/pdf":
-            pd_document["file_id"] = message.document.file_id
-            pd_document["type"] = "document"
-            await message.answer("✅ PDF документ успешно загружен и будет прикреплен к сообщению о ПД.")
-        else:
-            await message.answer("❌ Поддерживаются только PDF документы.")
-    
-    await state.clear()
-
-@dp.callback_query(F.data == "admin_delete_pd")
-async def admin_delete_pd_handler(callback: types.CallbackQuery):
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("❌ У вас нет доступа.", show_alert=True)
-        return
-    
-    if pd_document["file_id"]:
-        pd_document["file_id"] = None
-        pd_document["type"] = None
-        
-        # Обновляем админ-панель
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📎 Загрузить документ ПД", callback_data="admin_upload_pd")]
-        ])
-        text = "🔐 <b>Админ-панель</b>\n\n✅ Документ ПД успешно удален.\n\n📄 Документ ПД не загружен\n\nВыберите действие:"
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-        await callback.answer("Документ удален", show_alert=True)
-    else:
-        await callback.answer("❌ Документ ПД не загружен.", show_alert=True)
+    await message.answer("🔐 <b>Админ-панель</b>\n\nДоступные функции будут добавлены позже.", parse_mode="HTML")
 
 # ============= ОСНОВНОЙ СЦЕНАРИЙ БОТА =============
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
+    # Отменяем предыдущие напоминания, если они есть
+    cancel_reminders(message.from_user.id)
+    # Запускаем напоминания при команде /start
+    await schedule_reminders(message.from_user.id)
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎉 Рассчитать стоимость", callback_data="start_calc")]
@@ -141,7 +142,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "🏆 Расчет стоимости ремонта\n"
         "🏆 Пошаговый план ремонта от А до Я\n"
         "🏆 Консультацию дизайнера по вашей планировке\n\n"
-        "Готовы начать?"
+        "Готовы начать?\n\n"
+        f"🤝 Продолжая использовать чат-бот вы выражаете <a href=\"{CONSENT_URL}\">согласие</a> на обработку персональных данных в соответствии с <a href=\"{PRIVACY_POLICY_URL}\">политикой</a>. 🔒"
     )
     
     # Отправляем фото с текстом
@@ -150,11 +152,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer_photo(
             photo=FSInputFile(photo_path),
             caption=welcome_text,
-            reply_markup=keyboard
+            reply_markup=keyboard,
+            parse_mode="HTML"
         )
     except FileNotFoundError:
         # Если файл не найден, отправляем только текст
-        await message.answer(welcome_text, reply_markup=keyboard)
+        await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(F.data == "start_calc")
 async def start_calculation(callback: types.CallbackQuery, state: FSMContext):
@@ -295,39 +298,53 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
     
     await state.update_data(deadline=deadline_mapping[callback.data])
     
-    text = "Кстати, продолжая, вы даёте согласие на обработку персональных данных. 🤝"
-    
-    # Проверяем, есть ли загруженный документ
-    if pd_document["file_id"]:
-        if pd_document["type"] == "photo":
-            await callback.message.answer_photo(
-                photo=pd_document["file_id"],
-                caption=text
-            )
-        else:  # document
-            await callback.message.answer_document(
-                document=pd_document["file_id"],
-                caption=text
-            )
-    else:
-        await callback.message.answer(text)
-    
     # Автоматически переходим к следующему шагу
-    await asyncio.sleep(1)
     
     # Получаем имя пользователя
     user_name = callback.from_user.first_name or "Пользователь"
+    await state.update_data(user_name=user_name)
     
     # Вычисляем дату через 3 дня
     future_date = datetime.now() + timedelta(days=3)
     date_str = future_date.strftime("%d.%m.%Y")
     
-    text = (
+    # Базовый текст сообщения
+    base_text = (
         f"{user_name},\n\n"
         f"Ваш расчет стоимости почти готов!\n\n"
-        f"Закрепим за номером стоимость, бесплатную консультацию и разбор планировки дизайнером. "
-        f"Разбор с дизайнером действителен до {date_str}."
+        f"Закрепим за номером стоимость, бесплатную консультацию и разбор планировки дизайнером. Разбор с дизайнером действителен до {date_str}."
     )
+    
+    # Анимация "бот думает" - меняется нижняя часть сообщения
+    thinking_messages = [
+        "💬 Собираю данные для точного расчета стоимости ремонта",
+        "💬 Анализирую введенные данные",
+        "💬 Начинаю анализ ваших критериев",
+        "💬 Начинаю анализ ваших критериев\n💬 Делаю расчет по вашим критериям",  # Сначала п.3, потом добавляется 3.1
+        "💬 Сравниваю цены на материалы",
+        "💬 Сверяю объем работ со сроками",
+        "💬 Все внимательно проверяю, оптимизирую ✅"
+    ]
+    
+    # Отправляем первое сообщение с базовым текстом и первой анимацией
+    main_msg = await callback.message.answer(f"{base_text}\n\n{thinking_messages[0]}")
+    await asyncio.sleep(1.5)
+    
+    # Редактируем сообщение, меняя только нижнюю часть с анимацией
+    for thinking_text in thinking_messages[1:]:
+        try:
+            await main_msg.edit_text(f"{base_text}\n\n{thinking_text}")
+        except Exception as e:
+            # Игнорируем ошибку "message is not modified"
+            if "message is not modified" not in str(e):
+                logging.error(f"Failed to edit message: {e}")
+                # Если редактирование не удалось, удаляем старое и отправляем новое
+                try:
+                    await main_msg.delete()
+                except:
+                    pass
+                main_msg = await callback.message.answer(f"{base_text}\n\n{thinking_text}")
+        await asyncio.sleep(1.5)
     
     # Создаем обычную клавиатуру с кнопкой для запроса контакта
     keyboard = ReplyKeyboardMarkup(
@@ -338,8 +355,21 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
         one_time_keyboard=True
     )
     
-    msg = await callback.message.answer(text, reply_markup=keyboard)
-    await state.update_data(last_message_id=msg.message_id, user_name=user_name)
+    # Редактируем сообщение, убирая анимацию
+    # Примечание: нельзя редактировать сообщение с ReplyKeyboardMarkup, поэтому отправляем новое
+    try:
+        await main_msg.edit_text(base_text)
+        # Отправляем новое сообщение с клавиатурой
+        new_msg = await callback.message.answer(base_text, reply_markup=keyboard)
+        await state.update_data(last_message_id=new_msg.message_id)
+    except Exception as e:
+        logging.error(f"Failed to edit message: {e}")
+        # Если не удалось отредактировать, отправляем новое сообщение с клавиатурой
+        new_msg = await callback.message.answer(base_text, reply_markup=keyboard)
+        await state.update_data(last_message_id=new_msg.message_id)
+    
+    await state.set_state(Form.phone)
+    await callback.answer()
     await state.set_state(Form.phone)
     await callback.answer()
 
@@ -382,38 +412,7 @@ async def process_phone(message: types.Message, state: FSMContext):
     data = await state.get_data()
     user_name = data.get('user_name', message.from_user.first_name or 'Пользователь')
     
-    # Вычисляем дату через 3 дня
-    future_date = datetime.now() + timedelta(days=3)
-    date_str = future_date.strftime("%d.%m.%Y")
-    
-    # Базовый текст сообщения
-    base_text = (
-        f"{user_name},\n\n"
-        f"Ваш расчет стоимости почти готов!\n\n"
-        f"Закрепим за номером стоимость, бесплатную консультацию и разбор планировки дизайнером. Разбор с дизайнером действителен до {date_str}."
-    )
-    
-    # Анимация "бот думает" - меняется нижняя часть сообщения
-    thinking_messages = [
-        "💬 Собираю данные для точного расчета стоимости ремонта",
-        "💬 Анализирую введенные данные",
-        "💬 Начинаю анализ ваших критериев",
-        "💬 Начинаю анализ ваших критериев\n💬 Делаю расчет по вашим критериям",
-        "💬 Сравниваю цены на материалы",
-        "💬 Сверяю объем работ со сроками",
-        "💬 Все внимательно проверяю, оптимизирую ✅"
-    ]
-    
-    # Отправляем первое сообщение с базовым текстом и первой анимацией
-    main_msg = await message.answer(f"{base_text}\n\n{thinking_messages[0]}")
-    await asyncio.sleep(1.5)
-    
-    # Редактируем сообщение, меняя только нижнюю часть с анимацией
-    for thinking_text in thinking_messages[1:]:
-        await main_msg.edit_text(f"{base_text}\n\n{thinking_text}")
-        await asyncio.sleep(1.5)
-    
-    # Финальное сообщение без анимации
+    # Финальное сообщение
     final_text = (
         f"{user_name}, наш менеджер может связаться для уточнения деталей.\n\n"
         "Чтобы предоставить более точный расчет.\n\n"
@@ -441,6 +440,8 @@ async def process_phone(message: types.Message, state: FSMContext):
     
     # Очищаем состояние
     await state.clear()
+    # Отменяем напоминания, так как пользователь завершил опрос
+    cancel_reminders(message.from_user.id)
 
 # Запуск бота
 async def main():
