@@ -355,21 +355,17 @@ async def process_deadline(callback: types.CallbackQuery, state: FSMContext):
         one_time_keyboard=True
     )
     
-    # Редактируем сообщение, убирая анимацию
-    # Примечание: нельзя редактировать сообщение с ReplyKeyboardMarkup, поэтому отправляем новое
+    # Удаляем старое сообщение с анимацией и отправляем новое с клавиатурой
+    # Примечание: нельзя редактировать сообщение с ReplyKeyboardMarkup, поэтому удаляем старое и отправляем новое
     try:
-        await main_msg.edit_text(base_text)
-        # Отправляем новое сообщение с клавиатурой
-        new_msg = await callback.message.answer(base_text, reply_markup=keyboard)
-        await state.update_data(last_message_id=new_msg.message_id)
+        await main_msg.delete()
     except Exception as e:
-        logging.error(f"Failed to edit message: {e}")
-        # Если не удалось отредактировать, отправляем новое сообщение с клавиатурой
-        new_msg = await callback.message.answer(base_text, reply_markup=keyboard)
-        await state.update_data(last_message_id=new_msg.message_id)
+        logging.error(f"Failed to delete old message: {e}")
     
-    await state.set_state(Form.phone)
-    await callback.answer()
+    # Отправляем новое сообщение с клавиатурой
+    new_msg = await callback.message.answer(base_text, reply_markup=keyboard)
+    await state.update_data(last_message_id=new_msg.message_id)
+    
     await state.set_state(Form.phone)
     await callback.answer()
 
