@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, FSInputFile
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -148,7 +148,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     photo_path = "images/dfegvjedrfgvf.jpg"
     try:
         await message.answer_photo(
-            photo=types.FSInputFile(photo_path),
+            photo=FSInputFile(photo_path),
             caption=welcome_text,
             reply_markup=keyboard
         )
