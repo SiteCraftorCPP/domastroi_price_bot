@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -151,28 +151,18 @@ async def cmd_start(message: types.Message, state: FSMContext):
     
     welcome_text = (
         "Привет! Я бот компании Domastroi — мы разрабатываем качественные проекты и делаем ремонт под ключ.\n\n"
-        "Репутация: 15 лет, 8 стран, 2000+ проектов, формат «под ключ в одной компании» и очень качественные чертежи без ошибок. Мы сделаем такой интерьер, которым вы будете гордиться, ваши друзья - завидовать, а ваши дети будут расти жизнерадостными и здоровыми.\n\n"
-        "Сделаем рассчет?\n"
+        "<b>Репутация:</b> <b>15 лет, 8 стран, 2000+ проектов</b>, формат <b>«под ключ в одной компании»</b> и очень качественные чертежи без ошибок. Мы сделаем интерьер, которым <b>вы будете гордиться</b>.\n\n"
+        "<b>Сделаем расчет?</b>\n"
         "Это займет всего несколько минут, и вы получите:\n\n"
         "🏆 Расчет стоимости ремонта\n"
         "🏆 Пошаговый план ремонта от А до Я\n"
         "🏆 Консультацию дизайнера по вашей планировке\n\n"
-        "Готовы начать?\n\n"
+        "<b>Готовы начать?</b>\n\n"
         f"🤝 Продолжая использовать чат-бот вы выражаете <a href=\"{CONSENT_URL}\">согласие</a> на обработку персональных данных в соответствии с <a href=\"{PRIVACY_POLICY_URL}\">политикой</a>. 🔒"
     )
     
-    # Отправляем фото с текстом
-    photo_path = "images/dfegvjedrfgvf.jpg"
-    try:
-        await message.answer_photo(
-            photo=FSInputFile(photo_path),
-            caption=welcome_text,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    except FileNotFoundError:
-        # Если файл не найден, отправляем только текст
-        await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    # Отправляем только текст без фото
+    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(F.data == "start_calc")
 async def start_calculation(callback: types.CallbackQuery, state: FSMContext):
