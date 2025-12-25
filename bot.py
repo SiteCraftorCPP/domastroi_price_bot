@@ -357,6 +357,10 @@ async def process_phone(message: types.Message, state: FSMContext):
     phone = message.contact.phone_number
     await state.update_data(phone=phone)
     
+    # Собираем все данные
+    data = await state.get_data()
+    user_name = data.get('user_name', message.from_user.first_name or 'Пользователь')
+    
     text = (
         f"{user_name}, наш менеджер может связаться для уточнения деталей.\n\n"
         "Чтобы предоставить более точный расчет.\n\n"
@@ -364,10 +368,6 @@ async def process_phone(message: types.Message, state: FSMContext):
     )
     
     await message.answer(text, reply_markup=ReplyKeyboardRemove())
-    
-    # Собираем все данные
-    data = await state.get_data()
-    user_name = data.get('user_name', 'Не указано')
     username = f"@{message.from_user.username}" if message.from_user.username else "Не указан"
     
     # Формируем сообщение для админского чата
