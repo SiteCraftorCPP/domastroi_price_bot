@@ -145,14 +145,13 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     
     # Отправляем фото с текстом
-    photo_path = "images/dfegvjedrfgvf"
+    photo_path = "images/dfegvjedrfgvf.jpg"
     try:
-        with open(photo_path, "rb") as photo:
-            await message.answer_photo(
-                photo=types.FSInputFile(photo_path),
-                caption=welcome_text,
-                reply_markup=keyboard
-            )
+        await message.answer_photo(
+            photo=types.FSInputFile(photo_path),
+            caption=welcome_text,
+            reply_markup=keyboard
+        )
     except FileNotFoundError:
         # Если файл не найден, отправляем только текст
         await message.answer(welcome_text, reply_markup=keyboard)
