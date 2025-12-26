@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
@@ -19,8 +20,9 @@ CHAT_ID = int(os.getenv("CHAT_ID", "-1003650005079"))
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "765740972,6933111964").split(",")]
 
 # Ссылки на документы (PDF файлы на GitHub)
-CONSENT_URL = os.getenv("CONSENT_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/agreement.pdf")  # URL текста согласия
-PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/Privacy%20Policy.pdf")  # URL политики конфиденциальности
+BASE_DOCS_URL = "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/"
+CONSENT_URL = os.getenv("CONSENT_URL", BASE_DOCS_URL + quote("agreement.pdf", safe=""))  # URL текста согласия
+PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", BASE_DOCS_URL + quote("Privacy Policy.pdf", safe=""))  # URL политики конфиденциальности
 
 # Настройка логирования
 logging.basicConfig(
@@ -162,7 +164,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     
     # Отправляем только текст без фото
-    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML", disable_web_page_preview=True)
 
 @dp.callback_query(F.data == "start_calc")
 async def start_calculation(callback: types.CallbackQuery, state: FSMContext):
