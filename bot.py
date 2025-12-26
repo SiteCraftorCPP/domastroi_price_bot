@@ -19,8 +19,8 @@ CHAT_ID = int(os.getenv("CHAT_ID", "-1003650005079"))
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "765740972,6933111964").split(",")]
 
 # Ссылки на документы (PDF файлы на GitHub)
-CONSENT_URL = os.getenv("CONSENT_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/soglasie.pdf")  # URL текста согласия
-PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/politika.pdf")  # URL политики конфиденциальности
+CONSENT_URL = os.getenv("CONSENT_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/agreement.pdf")  # URL текста согласия
+PRIVACY_POLICY_URL = os.getenv("PRIVACY_POLICY_URL", "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/Privacy%20Policy.pdf")  # URL политики конфиденциальности
 
 # Настройка логирования
 logging.basicConfig(
