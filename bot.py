@@ -3,8 +3,10 @@ import logging
 import os
 from datetime import datetime, timedelta
 from urllib.parse import quote
+
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F, types
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -19,6 +21,27 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "7884349748:AAEZC82Nd72L1eR1rhupuDWihjWdEKG4b
 CHAT_ID = int(os.getenv("CHAT_ID", "-1003650005079"))
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "765740972,6933111964").split(",")]
 
+
+def telegram_proxy_url() -> str | None:
+    """Нормализовать прокси для Telegram API.
+
+    Поддерживаем:
+    - socks5://user:pass@host:port (или http://...)
+    - host:port:user:pass (формат из панелей)
+    """
+    raw = (os.getenv("TELEGRAM_PROXY") or "").strip()
+    if not raw:
+        return None
+    if "://" in raw:
+        return raw
+    parts = raw.split(":")
+    if len(parts) == 4:
+        host, port, user, password = parts
+        user_q = quote(user, safe="")
+        pass_q = quote(password, safe="")
+        return f"socks5://{user_q}:{pass_q}@{host}:{port}"
+    return raw
+
 # Ссылки на документы (PDF файлы на GitHub)
 BASE_DOCS_URL = "https://raw.githubusercontent.com/SiteCraftorCPP/domastroi_price_bot/main/politika%20i%20soglasie/"
 CONSENT_URL = os.getenv("CONSENT_URL", BASE_DOCS_URL + quote("agreement.pdf", safe=""))  # URL текста согласия
@@ -30,8 +53,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# Инициализация бота
-bot = Bot(token=BOT_TOKEN)
+# Инициализация бота (с прокси — нужен пакет aiohttp-socks)
+_proxy = telegram_proxy_url()
+_bot_session = AiohttpSession(proxy=_proxy) if _proxy else AiohttpSession()
+bot = Bot(token=BOT_TOKEN, session=_bot_session)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -452,6 +477,7 @@ async def main():
     logging.info(f"Bot token: {BOT_TOKEN[:10]}...")
     logging.info(f"Chat ID: {CHAT_ID}")
     logging.info(f"Admin IDs: {ADMIN_IDS}")
+    logging.info("Telegram API proxy: enabled" if _proxy else "Telegram API proxy: disabled")
     
     # Проверяем регистрацию обработчиков
     try:
